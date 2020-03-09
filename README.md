@@ -1,1 +1,3 @@
-## AWS Glue Workshop : TO DO
+## AWS Glue Immersion Day:
+
+TO DO
