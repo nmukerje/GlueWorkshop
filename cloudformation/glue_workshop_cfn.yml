@@ -116,7 +116,7 @@ Resources:
       - GlueDevEndpoint
     Properties:
       DirectInternetAccess: Enabled
-      #LifecycleConfigName: !GetAtt GlueSagemakerLifecycleConfig.NotebookInstanceLifecycleConfigName
+      LifecycleConfigName: !GetAtt GlueSagemakerLifecycleConfig.NotebookInstanceLifecycleConfigName
       SubnetId: !GetAtt 'VPCStack.Outputs.PublicSubnet1Id'
       NotebookInstanceName: glue-development-notebook
       InstanceType: ml.t2.xlarge
@@ -129,21 +129,22 @@ Resources:
         - Key: aws-glue-dev-endpoint
           Value: Glue-Dev-Endpoint
 
-  # GlueSagemakerLifecycleConfig:
-  #   Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
-  #   Properties:
-  #     NotebookInstanceLifecycleConfigName: SageMaker-Glue-LifecycleConfig
-  #     OnStart:
-  #       - Content:
-  #           Fn::Base64: !Sub |
-  #
-  #             sudo -u ec2-user -i <<'EOF'
-  #             ## Download and execute lifecycle script
-  #             aws s3 cp s3://emr-workshops-us-west-2/data_transformation_workshop/scripts/sagemaker_glue_lifecycle.sh /home/ec2-user/scripts/
-  #             chmod +x /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
-  #             /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
-  #
-  #             EOF
+  GlueSagemakerLifecycleConfig:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties:
+      NotebookInstanceLifecycleConfigName: SageMaker-Glue-LifecycleConfig
+      OnStart:
+        - Content:
+            Fn::Base64: !Sub |
+
+              sudo -u ec2-user -i <<'EOF'
+              ## Download and execute lifecycle script
+              aws s3 cp s3://emr-workshops-us-west-2/glue_immersion_day/scripts/sagemaker_glue_lifecycle.sh /home/ec2-user/scripts/
+              chmod +x /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
+              /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
+
+              EOF
+
   KinesisStream:
     Type: AWS::Kinesis::Stream
     Properties:
