@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Glue Components
+
+Parameters:
+
+  EEKeyPair:
+      Description: Must be an existing Keyname
+      Type: AWS::EC2::KeyPair::KeyName
+      Default: ee-default-keypair
+
+Resources:
+
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://emr-workshops-us-west-2.s3-us-west-2.amazonaws.com/glue_immersion_day/cloudformation/vpc_s3_stack.yml
+      TimeoutInMinutes: 60
+
+
+  # SagemakerNotebookInstance:
+  #   Type: 'AWS::SageMaker::NotebookInstance'
+  #   DependsOn:
+  #     - SagemakerRoleWS
+  #     - SagemakerLifecycleConfig
+  #   Properties:
+  #     DirectInternetAccess: Enabled
+  #     LifecycleConfigName: !GetAtt SagemakerLifecycleConfig.NotebookInstanceLifecycleConfigName
+  #     SubnetId: !GetAtt 'VPCStack.Outputs.PublicSubnet1Id'
+  #     NotebookInstanceName: 2-emr-development-notebook
+  #     InstanceType: ml.t2.xlarge
+  #     RoleArn: !GetAtt
+  #       - SagemakerRoleWS
+  #       - Arn
+  #     SecurityGroupIds:
+  #       - !GetAtt 'VPCStack.Outputs.WorkshopSecurityGroup'
+
+  # SagemakerLifecycleConfig:
+  #   Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+  #   Properties:
+  #     NotebookInstanceLifecycleConfigName: LifecycleConfig
+  #     OnStart:
+  #       - Content:
+  #           Fn::Base64: !Sub |
+  #
+  #             sudo -u ec2-user -i <<'EOF'
+  #             ## Download and execute lifecycle script
+  #             aws s3 cp s3://emr-workshops-us-west-2/data_transformation_workshop/scripts/sagemaker_lifecycle.sh /home/ec2-user/scripts/
+  #             chmod +x /home/ec2-user/scripts/sagemaker_lifecycle.sh
+  #             /home/ec2-user/scripts/sagemaker_lifecycle.sh
+  #
+  #             EOF
+
+  SagemakerRoleWS:
+    Type: 'AWS::IAM::Role'
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - sagemaker.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonRoute53ReadOnlyAccess'
+          - 'arn:aws:iam::aws:policy/AWSGlueConsoleSageMakerNotebookFullAccess'
+
+
+  GlueServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - glue.amazonaws.com
+                  - states.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        RoleName: GlueServiceRole
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+          - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess'
+          - 'arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess'
+
+  GlueDevEndpoint:
+    Type: AWS::Glue::DevEndpoint
+    Properties:
+      EndpointName: Glue-Dev-Endpoint
+      Arguments: { "--enable-glue-datacatalog": "" }
+      GlueVersion: 1.0
+      #NumberOfNodes: 3
+      NumberOfWorkers: 3
+      RoleArn: !GetAtt
+        - GlueServiceRole
+        - Arn
+      SecurityGroupIds:
+        - !GetAtt 'VPCStack.Outputs.WorkshopSecurityGroup'
+      SubnetId: !GetAtt 'VPCStack.Outputs.PublicSubnet1Id'
+      WorkerType: Standard
+
+
+  GlueSagemakerNotebookInstance:
+    Type: 'AWS::SageMaker::NotebookInstance'
+    DependsOn:
+      - GlueSagemakerRole
+      #- SagemakerLifecycleConfig
+      - GlueDevEndpoint
+    Properties:
+      DirectInternetAccess: Enabled
+      #LifecycleConfigName: !GetAtt GlueSagemakerLifecycleConfig.NotebookInstanceLifecycleConfigName
+      SubnetId: !GetAtt 'VPCStack.Outputs.PublicSubnet1Id'
+      NotebookInstanceName: glue-development-notebook
+      InstanceType: ml.t2.xlarge
+      RoleArn: !GetAtt
+        - GlueSagemakerRole
+        - Arn
+      SecurityGroupIds:
+        - !GetAtt 'VPCStack.Outputs.WorkshopSecurityGroup'
+      Tags:
+        - Key: aws-glue-dev-endpoint
+          Value: Glue-Dev-Endpoint
+
+  # GlueSagemakerLifecycleConfig:
+  #   Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+  #   Properties:
+  #     NotebookInstanceLifecycleConfigName: SageMaker-Glue-LifecycleConfig
+  #     OnStart:
+  #       - Content:
+  #           Fn::Base64: !Sub |
+  #
+  #             sudo -u ec2-user -i <<'EOF'
+  #             ## Download and execute lifecycle script
+  #             aws s3 cp s3://emr-workshops-us-west-2/data_transformation_workshop/scripts/sagemaker_glue_lifecycle.sh /home/ec2-user/scripts/
+  #             chmod +x /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
+  #             /home/ec2-user/scripts/sagemaker_glue_lifecycle.sh
+  #
+  #             EOF
+  KinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: Glue_Lab_Event_Stream
+      ShardCount: 2
+
+  GlueSagemakerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - sagemaker.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+          - 'arn:aws:iam::aws:policy/AmazonRoute53ReadOnlyAccess'
+          - 'arn:aws:iam::aws:policy/AWSGlueConsoleSageMakerNotebookFullAccess'
