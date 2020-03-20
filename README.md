@@ -1,4 +1,4 @@
-## AWS Glue Immersion Day Modules:
+## AWS Glue Workshop Modules:
 
 - Module 1: Building a DataLake using AWS Glue.
 - Module 2: Incremental processing from OLTP Database to Datalake / DataWarehouse. - WIP
