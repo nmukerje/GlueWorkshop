@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Stack 1: Deploy VPC with 3 public subnet, Security Group, S3 and Route53 Private Hosted Zone'
 
+Parameters:
+    S3BucketName:
+      Type: String
+      Description: S3 Location to store workshop resources
 
 Resources:
   VPC:
@@ -145,6 +149,13 @@ Resources:
         - IpProtocol: -1
           SourceSecurityGroupId: !Ref WorkshopSecurityGroup
 
+  WorkshopSecurityGroupSelfReference:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref WorkshopSecurityGroup
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref WorkshopSecurityGroup
+
   WorkshopSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -160,6 +171,7 @@ Resources:
           FromPort: 22
           ToPort: 22
 
+
   PrivateHostedZone:
     Type: AWS::Route53::HostedZone
     DependsOn: VPC
@@ -174,7 +186,7 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       AccessControl: BucketOwnerFullControl
-      BucketName: !Join [ '-', [glue-labs, !Ref 'AWS::AccountId'] ]
+      BucketName: !Join [ '-', [!Ref S3BucketName, !Ref 'AWS::AccountId'] ]
 
 
   S3VPCEndpoint:
@@ -221,3 +233,7 @@ Outputs:
   EMRSecurityGroup:
     Description: 'Security Group'
     Value: !Ref EMRSecurityGroup
+
+  BucketName:
+      Description: 'S3 BucketName'
+      Value: !Ref S3Bucket
